@@ -4,7 +4,7 @@ export default async function handler(req, res) {
 
   try {
     const r = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${API_KEY}`,
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-lite:generateContent?key=${API_KEY}`,
       {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -16,7 +16,7 @@ export default async function handler(req, res) {
     );
     const data = await r.json();
     if (data.error) return res.json({ status: "ERROR_GEMINI", detalle: data.error });
-    return res.json({ status: "OK", modelo: "gemini-1.5-flash", mensaje: "API key válida y Gemini responde correctamente" });
+    return res.json({ status: "OK", modelo: "gemini-2.0-flash-lite", mensaje: "API key válida y Gemini responde correctamente" });
   } catch (e) {
     return res.json({ status: "ERROR_RED", detalle: e.message });
   }
