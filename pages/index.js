@@ -70,7 +70,7 @@ export default function Home() {
   return (
     <>
       <Head>
-        <title>Buscador Documental · Consejo de la Magistratura de la Nación</title>
+        <title>Buscador No Oficial de Documentación del Consejo de la Magistratura</title>
         <meta name="description" content="Sitio no oficial de búsqueda en la base documental pública del Consejo de la Magistratura de la Nación Argentina" />
         <meta name="viewport" content="width=device-width, initial-scale=1" />
         <link rel="preconnect" href="https://fonts.googleapis.com" />
@@ -94,8 +94,8 @@ export default function Home() {
         <header className={styles.header}>
           <div className={styles.headerInner}>
             <p className={styles.headerFlag}>República Argentina · Poder Judicial de la Nación</p>
-            <h1 className={styles.headerTitle}>Consejo de la Magistratura de la Nación</h1>
-            <p className={styles.headerSub}>Buscador de Resoluciones y Documentación Institucional</p>
+            <h1 className={styles.headerTitle}>Buscador No Oficial de Documentación del Consejo de la Magistratura</h1>
+            <p className={styles.headerSub}>Acceso a documentos públicos del Poder Judicial de la Nación</p>
             <div className={styles.headerPill}>
               <span className={styles.pillDot} />
               Búsqueda en tiempo real · documentos públicos PJN
