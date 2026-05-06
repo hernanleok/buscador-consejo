@@ -9,9 +9,8 @@ export default async function handler(req, res) {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          contents: [{ parts: [{ text: "Buscá en pjn.gov.ar documentos del Consejo de la Magistratura sobre antisemitismo" }] }],
-          tools: [{ googleSearchRetrieval: {} }],
-          generationConfig: { temperature: 0, maxOutputTokens: 500 }
+          contents: [{ parts: [{ text: "Respondé solo: FUNCIONA" }] }],
+          generationConfig: { maxOutputTokens: 10 }
         })
       }
     );
@@ -21,4 +20,4 @@ export default async function handler(req, res) {
     res.json({ error: e.message });
   }
 }
-// rebuild Wed May  6 23:07:53 UTC 2026
+// sin search grounding
