@@ -5,11 +5,11 @@ export default async function handler(req, res) {
   if (!query?.trim()) return res.status(400).json({ error: "Consulta vacía" });
 
   const API_KEY = process.env.GEMINI_API_KEY;
-  if (!API_KEY) return res.status(500).json({ error: "API key no configurada. Agregá GEMINI_API_KEY en Vercel." });
+  if (!API_KEY) return res.status(500).json({ error: "API key no configurada en Vercel." });
 
   try {
     const geminiRes = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${API_KEY}`,
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${API_KEY}`,
       {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -19,7 +19,7 @@ export default async function handler(req, res) {
               text: `Buscá documentos del Consejo de la Magistratura de la Nación Argentina en pjn.gov.ar sobre: "${query}". Solo incluí URLs de pjn.gov.ar o pjn-documento-api.pjn.gov.ar. No inventes información. Devolvé ÚNICAMENTE este JSON sin markdown: {"analisis":"resumen de lo encontrado","resultados":[{"url":"URL exacta","titulo":"título","fragmento":"texto del fragmento","fecha":"fecha si figura","tipo":"tipo de documento"}]}`
             }]
           }],
-          tools: [{ google_search: {} }],
+          tools: [{ googleSearchRetrieval: {} }],
           generationConfig: { temperature: 0, maxOutputTokens: 4000 }
         })
       }
