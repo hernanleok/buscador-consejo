@@ -4,36 +4,77 @@ export default async function handler(req, res) {
   const { query } = req.body;
   if (!query?.trim()) return res.status(400).json({ error: "Consulta vacía" });
 
-  const API_KEY = process.env.GEMINI_API_KEY;
-  if (!API_KEY) return res.status(500).json({ error: "API key no configurada en Vercel." });
+  const TAVILY_KEY = process.env.TAVILY_API_KEY;
+  const GROQ_KEY = process.env.GROQ_API_KEY;
+
+  if (!TAVILY_KEY) return res.status(500).json({ error: "TAVILY_API_KEY no configurada" });
+  if (!GROQ_KEY) return res.status(500).json({ error: "GROQ_API_KEY no configurada" });
 
   try {
-    const geminiRes = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-lite:generateContent?key=${API_KEY}`,
-      {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          contents: [{
-            parts: [{
-              text: `Buscá documentos del Consejo de la Magistratura de la Nación Argentina en pjn.gov.ar sobre: "${query}". Solo incluí URLs de pjn.gov.ar o pjn-documento-api.pjn.gov.ar. No inventes información. Devolvé ÚNICAMENTE este JSON sin markdown: {"analisis":"resumen de lo encontrado","resultados":[{"url":"URL exacta","titulo":"título","fragmento":"texto del fragmento","fecha":"fecha si figura","tipo":"tipo de documento"}]}`
-            }]
-          }],
-          tools: [{ googleSearchRetrieval: {} }],
-          generationConfig: { temperature: 0, maxOutputTokens: 4000 }
-        })
-      }
-    );
+    // 1. Buscar en PJN con Tavily
+    const tavilyRes = await fetch("https://api.tavily.com/search", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        api_key: TAVILY_KEY,
+        query: `Consejo de la Magistratura ${query}`,
+        include_domains: ["pjn.gov.ar", "pjn-documento-api.pjn.gov.ar"],
+        max_results: 8,
+        include_raw_content: false
+      })
+    });
 
-    if (!geminiRes.ok) {
-      const errText = await geminiRes.text();
-      return res.status(500).json({ error: `Gemini API error ${geminiRes.status}`, detalle: errText.slice(0, 500) });
+    if (!tavilyRes.ok) {
+      const err = await tavilyRes.text();
+      return res.status(500).json({ error: `Tavily error ${tavilyRes.status}`, detalle: err.slice(0, 300) });
     }
 
-    const data = await geminiRes.json();
-    const parts = data.candidates?.[0]?.content?.parts || [];
-    const rawText = parts.find(p => p.text)?.text || "";
-    const groundingChunks = data.candidates?.[0]?.groundingMetadata?.groundingChunks || [];
+    const tavilyData = await tavilyRes.json();
+    const rawResults = tavilyData.results || [];
+
+    if (rawResults.length === 0) {
+      return res.json({ analisis: `No se encontraron documentos en PJN para "${query}".`, resultados: [] });
+    }
+
+    // 2. Usar Groq para analizar y estructurar los resultados
+    const docsText = rawResults.map((r, i) =>
+      `[${i+1}] URL: ${r.url}\nTítulo: ${r.title}\nFragmento: ${r.content?.slice(0, 300) || ""}`
+    ).join("\n\n");
+
+    const groqRes = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${GROQ_KEY}`
+      },
+      body: JSON.stringify({
+        model: "llama-3.3-70b-versatile",
+        temperature: 0,
+        max_tokens: 2000,
+        messages: [{
+          role: "system",
+          content: "Sos un asistente jurídico del Consejo de la Magistratura de la Nación Argentina. Respondés siempre en español. Solo usás información que figura explícitamente en los documentos provistos. No inventás ni completás información."
+        }, {
+          role: "user",
+          content: `El usuario buscó: "${query}"
+
+Estos son los documentos encontrados en pjn.gov.ar:
+
+${docsText}
+
+Devolvé ÚNICAMENTE este JSON válido (sin markdown, sin texto adicional):
+{"analisis":"Una oración describiendo qué encontraste","resultados":[{"url":"URL exacta","titulo":"título del documento","fragmento":"texto relevante del fragmento","fecha":"fecha si figura, sino vacío","tipo":"tipo de documento si es identificable"}]}`
+        }]
+      })
+    });
+
+    if (!groqRes.ok) {
+      const err = await groqRes.text();
+      return res.status(500).json({ error: `Groq error ${groqRes.status}`, detalle: err.slice(0, 300) });
+    }
+
+    const groqData = await groqRes.json();
+    const rawText = groqData.choices?.[0]?.message?.content || "{}";
 
     let parsed = { analisis: "", resultados: [] };
     try {
@@ -41,20 +82,20 @@ export default async function handler(req, res) {
       if (match) parsed = JSON.parse(match[0]);
     } catch (_) {}
 
-    let resultados = (parsed.resultados || []).filter(r =>
-      r.url && (r.url.includes("pjn.gov.ar") || r.url.includes("pjn-documento-api"))
-    );
-
-    if (resultados.length === 0 && groundingChunks.length > 0) {
-      resultados = groundingChunks
-        .filter(c => c.web?.uri && (c.web.uri.includes("pjn.gov.ar") || c.web.uri.includes("pjn-documento-api")))
-        .map(c => ({ url: c.web.uri, titulo: c.web.title || "Documento PJN", fragmento: "", fecha: "", tipo: "" }));
+    // Fallback: si Groq no devolvió JSON válido, usar los resultados crudos de Tavily
+    if (!parsed.resultados?.length) {
+      parsed.resultados = rawResults.map(r => ({
+        url: r.url,
+        titulo: r.title,
+        fragmento: r.content?.slice(0, 250) || "",
+        fecha: "",
+        tipo: ""
+      }));
+      parsed.analisis = `Se encontraron ${rawResults.length} documentos en PJN para "${query}".`;
     }
 
-    res.json({
-      analisis: parsed.analisis || (resultados.length > 0 ? `${resultados.length} documento(s) encontrado(s) en PJN.` : `Sin resultados en PJN para "${query}".`),
-      resultados
-    });
+    res.json({ analisis: parsed.analisis, resultados: parsed.resultados });
+
   } catch (err) {
     res.status(500).json({ error: "Error en la búsqueda", detalle: err.message });
   }

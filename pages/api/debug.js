@@ -1,23 +1,40 @@
 export default async function handler(req, res) {
-  const API_KEY = process.env.GEMINI_API_KEY;
-  if (!API_KEY) return res.json({ error: "Sin API key" });
+  const TAVILY_KEY = process.env.TAVILY_API_KEY;
+  const GROQ_KEY = process.env.GROQ_API_KEY;
 
-  try {
-    const r = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-lite:generateContent?key=${API_KEY}`,
-      {
+  const status = {
+    tavily: TAVILY_KEY ? "KEY PRESENTE" : "SIN KEY",
+    groq: GROQ_KEY ? "KEY PRESENTE" : "SIN KEY"
+  };
+
+  // Probar Groq
+  if (GROQ_KEY) {
+    try {
+      const r = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "Authorization": `Bearer ${GROQ_KEY}` },
+        body: JSON.stringify({
+          model: "llama-3.3-70b-versatile",
+          max_tokens: 5,
+          messages: [{ role: "user", content: "Di OK" }]
+        })
+      });
+      const d = await r.json();
+      status.groq_test = d.choices ? "FUNCIONA" : JSON.stringify(d.error || d);
+    } catch(e) { status.groq_test = "ERROR: " + e.message; }
+  }
+
+  // Probar Tavily
+  if (TAVILY_KEY) {
+    try {
+      const r = await fetch("https://api.tavily.com/search", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          contents: [{ parts: [{ text: "Respondé solo: FUNCIONA" }] }],
-          generationConfig: { maxOutputTokens: 10 }
-        })
-      }
-    );
-    const data = await r.json();
-    res.json({ httpStatus: r.status, data });
-  } catch (e) {
-    res.json({ error: e.message });
+        body: JSON.stringify({ api_key: TAVILY_KEY, query: "test", max_results: 1 })
+      });
+      status.tavily_test = r.ok ? "FUNCIONA" : `ERROR ${r.status}`;
+    } catch(e) { status.tavily_test = "ERROR: " + e.message; }
   }
+
+  res.json(status);
 }
-// sin search grounding
