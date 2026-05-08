@@ -11,14 +11,14 @@ export default async function handler(req, res) {
   if (!GROQ_KEY) return res.status(500).json({ error: "GROQ_API_KEY no configurada" });
 
   try {
-    // 1. Buscar en PJN con Tavily
+    // Buscar directamente en pjn-documento-api donde están los PDFs reales
     const tavilyRes = await fetch("https://api.tavily.com/search", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         api_key: TAVILY_KEY,
-        query: `Consejo de la Magistratura ${query}`,
-        include_domains: ["pjn.gov.ar", "pjn-documento-api.pjn.gov.ar"],
+        query: `${query} Consejo de la Magistratura resolución`,
+        include_domains: ["pjn-documento-api.pjn.gov.ar"],
         max_results: 8,
         include_raw_content: false
       })
@@ -30,15 +30,35 @@ export default async function handler(req, res) {
     }
 
     const tavilyData = await tavilyRes.json();
-    const rawResults = tavilyData.results || [];
+    let rawResults = tavilyData.results || [];
 
+    // Si no hay resultados en pjn-documento-api, buscar más amplio en todo pjn.gov.ar
     if (rawResults.length === 0) {
-      return res.json({ analisis: `No se encontraron documentos en PJN para "${query}".`, resultados: [] });
+      const tavilyRes2 = await fetch("https://api.tavily.com/search", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          api_key: TAVILY_KEY,
+          query: `${query} Consejo de la Magistratura`,
+          include_domains: ["pjn.gov.ar"],
+          max_results: 8,
+          include_raw_content: false
+        })
+      });
+      const data2 = await tavilyRes2.json();
+      rawResults = data2.results || [];
     }
 
-    // 2. Usar Groq para analizar y estructurar los resultados
+    if (rawResults.length === 0) {
+      return res.json({
+        analisis: `No se encontraron documentos en PJN para "${query}".`,
+        resultados: []
+      });
+    }
+
+    // Usar Groq para analizar y relacionar cada resultado con la consulta
     const docsText = rawResults.map((r, i) =>
-      `[${i+1}] URL: ${r.url}\nTítulo: ${r.title}\nFragmento: ${r.content?.slice(0, 300) || ""}`
+      `[${i+1}] URL: ${r.url}\nTítulo: ${r.title}\nContenido: ${r.content?.slice(0, 400) || ""}`
     ).join("\n\n");
 
     const groqRes = await fetch("https://api.groq.com/openai/v1/chat/completions", {
@@ -53,17 +73,23 @@ export default async function handler(req, res) {
         max_tokens: 2000,
         messages: [{
           role: "system",
-          content: "Sos un asistente jurídico del Consejo de la Magistratura de la Nación Argentina. Respondés siempre en español. Solo usás información que figura explícitamente en los documentos provistos. No inventás ni completás información."
+          content: "Sos un asistente jurídico del Consejo de la Magistratura de la Nación Argentina. Solo usás información que figura explícitamente en los documentos provistos. No inventás ni completás información. Respondés siempre en español."
         }, {
           role: "user",
           content: `El usuario buscó: "${query}"
 
-Estos son los documentos encontrados en pjn.gov.ar:
+Documentos encontrados en PJN:
 
 ${docsText}
 
+Tu tarea:
+1. Evaluá si cada documento es genuinamente relevante para la búsqueda "${query}"
+2. Para los que sí son relevantes, extraé el título real, un fragmento pertinente y la fecha si figura
+3. Descartá los que no tienen relación real con la búsqueda
+4. El título debe reflejar el contenido real del documento, no inventarlo
+
 Devolvé ÚNICAMENTE este JSON válido (sin markdown, sin texto adicional):
-{"analisis":"Una oración describiendo qué encontraste","resultados":[{"url":"URL exacta","titulo":"título del documento","fragmento":"texto relevante del fragmento","fecha":"fecha si figura, sino vacío","tipo":"tipo de documento si es identificable"}]}`
+{"analisis":"Una oración describiendo qué encontraste relacionado con la búsqueda","resultados":[{"url":"URL exacta sin modificar","titulo":"título real del documento","fragmento":"texto del fragmento directamente relacionado con la búsqueda","fecha":"fecha si figura, sino vacío","tipo":"tipo de documento si es identificable"}]}`
         }]
       })
     });
@@ -82,7 +108,7 @@ Devolvé ÚNICAMENTE este JSON válido (sin markdown, sin texto adicional):
       if (match) parsed = JSON.parse(match[0]);
     } catch (_) {}
 
-    // Fallback: si Groq no devolvió JSON válido, usar los resultados crudos de Tavily
+    // Fallback si Groq no devolvió JSON válido
     if (!parsed.resultados?.length) {
       parsed.resultados = rawResults.map(r => ({
         url: r.url,
@@ -91,7 +117,7 @@ Devolvé ÚNICAMENTE este JSON válido (sin markdown, sin texto adicional):
         fecha: "",
         tipo: ""
       }));
-      parsed.analisis = `Se encontraron ${rawResults.length} documentos en PJN para "${query}".`;
+      parsed.analisis = `${rawResults.length} documento(s) encontrado(s) en PJN para "${query}".`;
     }
 
     res.json({ analisis: parsed.analisis, resultados: parsed.resultados });
