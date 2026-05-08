@@ -31,6 +31,7 @@ export default function Home() {
   const [error, setError] = useState("");
   const [summaryDoc, setSummaryDoc] = useState(null);
   const [summaryText, setSummaryText] = useState("");
+  const [fuenteTexto, setFuenteTexto] = useState("");
   const [loadingSummary, setLoadingSummary] = useState(false);
 
   async function callSearch(searchQuery) {
@@ -48,6 +49,7 @@ export default function Home() {
       const data = await res.json();
       if (data.error) throw new Error(data.error);
       setAnalysis(data.analisis || "");
+      if (data.queryReformulada) setAnalysis(prev => prev + ` (búsqueda reformulada: "${data.queryReformulada}")`);
       setResults(data.resultados || []);
     } catch (e) {
       setError("No se pudo completar la búsqueda. Intentá nuevamente.");
@@ -85,6 +87,7 @@ export default function Home() {
       });
       const data = await res.json();
       setSummaryText(data.texto || "No se pudo generar el análisis.");
+      setFuenteTexto(data.fuenteTexto || "");
     } catch {
       setSummaryText("No se pudo generar el análisis.");
     }
@@ -310,12 +313,13 @@ export default function Home() {
           <div className={styles.modal}>
             <div className={styles.modalHeader}>
               <div>
-                <p className={styles.modalLabel}>Análisis generado por IA · basado en extracto público del PJN</p>
+                <p className={styles.modalLabel}>Análisis generado por IA</p>
                 <p className={styles.modalTitle}>{summaryDoc.titulo}</p>
               </div>
               <button className={styles.modalClose} onClick={closeModal}>×</button>
             </div>
             <div className={styles.modalBody}>
+              {fuenteTexto && <p style={{fontSize:"0.7rem",color:"#0c1b4a",marginBottom:"0.75rem",fontWeight:500}}>📄 Basado en: {fuenteTexto}</p>}
               {loadingSummary
                 ? <div className={styles.modalLoading}><span className={styles.spinner} /> Generando análisis…</div>
                 : <p className={styles.modalText}>{summaryText}</p>
