@@ -425,3 +425,64 @@
   .main { padding: 1rem; }
   .statsBar { gap: 0.75rem; }
 }
+
+/* ── Tabs de modo ── */
+.modeTabs {
+  display: flex;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  overflow: hidden;
+  width: fit-content;
+  margin-bottom: 0.85rem;
+  background: #fff;
+}
+.modeTab {
+  padding: 0.42rem 1.1rem;
+  font-size: 0.78rem;
+  font-weight: 500;
+  cursor: pointer;
+  border: none;
+  background: #fff;
+  color: #64748b;
+  font-family: inherit;
+  transition: all 0.15s;
+}
+.modeTabActive {
+  background: #0c1b4a;
+  color: #fff;
+}
+
+/* ── Filtros ── */
+.filtersGrid {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 0.65rem;
+}
+.filterField {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+}
+.filterLabel {
+  font-size: 0.68rem;
+  font-weight: 600;
+  color: #64748b;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+.filterInput {
+  border: 1px solid #e2e8f0;
+  border-radius: 7px;
+  padding: 0.42rem 0.7rem;
+  font-size: 0.82rem;
+  font-family: inherit;
+  color: #1e293b;
+  background: #fff;
+  outline: none;
+  width: 100%;
+}
+.filterInput:focus { border-color: #0c1b4a; }
+
+@media (max-width: 600px) {
+  .filtersGrid { grid-template-columns: 1fr 1fr; }
+}

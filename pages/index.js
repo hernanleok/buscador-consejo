@@ -11,8 +11,20 @@ const EJEMPLOS = [
   "presupuesto Poder Judicial",
 ];
 
+const COMISIONES = [
+  "Plenario",
+  "Presidencia",
+  "Acusación",
+  "Selección",
+  "Disciplina",
+  "Administración y Financiera",
+  "Administración General",
+];
+
 export default function Home() {
+  const [mode, setMode] = useState("ia");
   const [query, setQuery] = useState("");
+  const [filters, setFilters] = useState({ tipo: "", comision: "", numero: "", desde: "", hasta: "" });
   const [results, setResults] = useState(null);
   const [searching, setSearching] = useState(false);
   const [analysis, setAnalysis] = useState("");
@@ -21,15 +33,12 @@ export default function Home() {
   const [summaryText, setSummaryText] = useState("");
   const [loadingSummary, setLoadingSummary] = useState(false);
 
-  async function doSearch(q) {
-    const searchQuery = q || query;
-    if (!searchQuery.trim()) return;
+  async function callSearch(searchQuery) {
     setSearching(true);
     setResults([]);
     setAnalysis("");
     setError("");
     setSummaryDoc(null);
-
     try {
       const res = await fetch("/api/search", {
         method: "POST",
@@ -45,6 +54,23 @@ export default function Home() {
       setResults([]);
     }
     setSearching(false);
+  }
+
+  function doSearch(q) {
+    const searchQuery = q || query;
+    if (!searchQuery.trim()) return;
+    callSearch(searchQuery);
+  }
+
+  function doFilter() {
+    const parts = [];
+    if (filters.tipo) parts.push(filters.tipo);
+    if (filters.comision) parts.push(`Comisión de ${filters.comision}`);
+    if (filters.numero) parts.push(`número ${filters.numero}`);
+    if (filters.desde) parts.push(`desde ${filters.desde}`);
+    if (filters.hasta) parts.push(`hasta ${filters.hasta}`);
+    if (parts.length === 0) return;
+    callSearch(parts.join(" "));
   }
 
   async function openSummary(doc) {
@@ -67,6 +93,13 @@ export default function Home() {
 
   function closeModal() { setSummaryDoc(null); }
 
+  const fld = (label, child) => (
+    <div className={styles.filterField}>
+      <label className={styles.filterLabel}>{label}</label>
+      {child}
+    </div>
+  );
+
   return (
     <>
       <Head>
@@ -80,7 +113,7 @@ export default function Home() {
 
       <div className={styles.page}>
 
-        {/* ── Aviso no oficial ── */}
+        {/* Aviso no oficial */}
         <div className={styles.unofficialBanner}>
           <span className={styles.unofficialIcon}>ⓘ</span>
           <span>
@@ -90,7 +123,7 @@ export default function Home() {
           </span>
         </div>
 
-        {/* ── Header ── */}
+        {/* Header */}
         <header className={styles.header}>
           <div className={styles.headerInner}>
             <p className={styles.headerFlag}>República Argentina · Poder Judicial de la Nación</p>
@@ -103,7 +136,7 @@ export default function Home() {
           </div>
         </header>
 
-        {/* ── Stats ── */}
+        {/* Stats */}
         <div className={styles.statsBar}>
           <span><strong>124.159</strong> documentos en PJN</span>
           <span className={styles.sep}>·</span>
@@ -112,50 +145,97 @@ export default function Home() {
           <span>Fuente: pjn.gov.ar</span>
         </div>
 
-        {/* ── Contenido ── */}
         <main className={styles.main}>
+
+          {/* Tabs de modo */}
+          <div className={styles.modeTabs}>
+            <button
+              className={`${styles.modeTab} ${mode === "ia" ? styles.modeTabActive : ""}`}
+              onClick={() => setMode("ia")}
+            >✦ Búsqueda IA</button>
+            <button
+              className={`${styles.modeTab} ${mode === "filtros" ? styles.modeTabActive : ""}`}
+              onClick={() => setMode("filtros")}
+            >☰ Filtros avanzados</button>
+          </div>
 
           {/* Search box */}
           <div className={styles.searchBox}>
-            <div className={styles.searchRow}>
-              <span className={styles.searchIcon}>⚖</span>
-              <input
-                className={styles.searchInput}
-                placeholder="Buscá en lenguaje natural: sanciones, concursos, licitaciones, reglamentos…"
-                value={query}
-                onChange={e => setQuery(e.target.value)}
-                onKeyDown={e => e.key === "Enter" && doSearch()}
-              />
-              <button
-                className={styles.searchBtn}
-                onClick={() => doSearch()}
-                disabled={searching || !query.trim()}
-              >
-                {searching ? (
-                  <><span className={styles.spinner} /> Buscando…</>
-                ) : "✦ Buscar"}
-              </button>
-            </div>
 
-            <div className={styles.chips}>
-              {EJEMPLOS.map(e => (
-                <button key={e} className={styles.chip}
-                  onClick={() => { setQuery(e); doSearch(e); }}>
-                  {e}
-                </button>
-              ))}
-            </div>
+            {mode === "ia" && (
+              <>
+                <div className={styles.searchRow}>
+                  <span className={styles.searchIcon}>⚖</span>
+                  <input
+                    className={styles.searchInput}
+                    placeholder="Buscá en lenguaje natural: sanciones, concursos, licitaciones, reglamentos…"
+                    value={query}
+                    onChange={e => setQuery(e.target.value)}
+                    onKeyDown={e => e.key === "Enter" && doSearch()}
+                  />
+                  <button
+                    className={styles.searchBtn}
+                    onClick={() => doSearch()}
+                    disabled={searching || !query.trim()}
+                  >
+                    {searching ? <><span className={styles.spinner} /> Buscando…</> : "✦ Buscar"}
+                  </button>
+                </div>
+                <div className={styles.chips}>
+                  {EJEMPLOS.map(e => (
+                    <button key={e} className={styles.chip}
+                      onClick={() => { setQuery(e); doSearch(e); }}>
+                      {e}
+                    </button>
+                  ))}
+                </div>
+              </>
+            )}
+
+            {mode === "filtros" && (
+              <>
+                <div className={styles.filtersGrid}>
+                  {fld("Tipo de documento",
+                    <input className={styles.filterInput} placeholder="Resolución, Dictamen…"
+                      value={filters.tipo} onChange={e => setFilters({ ...filters, tipo: e.target.value })} />
+                  )}
+                  {fld("Comisión",
+                    <select className={styles.filterInput} value={filters.comision}
+                      onChange={e => setFilters({ ...filters, comision: e.target.value })}>
+                      <option value="">Todas</option>
+                      {COMISIONES.map(c => <option key={c} value={c}>{c}</option>)}
+                    </select>
+                  )}
+                  {fld("Número",
+                    <input className={styles.filterInput} placeholder="343/2024"
+                      value={filters.numero} onChange={e => setFilters({ ...filters, numero: e.target.value })} />
+                  )}
+                  {fld("Fecha desde",
+                    <input className={styles.filterInput} type="date"
+                      value={filters.desde} onChange={e => setFilters({ ...filters, desde: e.target.value })} />
+                  )}
+                  {fld("Fecha hasta",
+                    <input className={styles.filterInput} type="date"
+                      value={filters.hasta} onChange={e => setFilters({ ...filters, hasta: e.target.value })} />
+                  )}
+                </div>
+                <div style={{ marginTop: "0.85rem", display: "flex", justifyContent: "flex-end" }}>
+                  <button className={styles.searchBtn} onClick={doFilter} disabled={searching}>
+                    {searching ? <><span className={styles.spinner} /> Buscando…</> : "Buscar"}
+                  </button>
+                </div>
+              </>
+            )}
 
             <p className={styles.searchNote}>
               Los resultados provienen únicamente de documentos públicos en{" "}
-              <code>pjn-documento-api.pjn.gov.ar</code>. El buscador no genera ni completa información.
+              <code>pjn.gov.ar</code>. El buscador no genera ni completa información.
             </p>
           </div>
 
           {/* Resultados */}
           {results !== null && (
             <div className={styles.resultsArea}>
-
               {analysis && (
                 <div className={styles.aiBanner}>
                   <span className={styles.aiIcon}>✦</span>
@@ -165,16 +245,13 @@ export default function Home() {
                   </div>
                 </div>
               )}
-
               {error && <div className={styles.errorBox}>{error}</div>}
-
               <p className={styles.resultCount}>
                 {results.length === 0 && !error
                   ? "No se encontraron documentos del Consejo de la Magistratura para esta búsqueda en PJN."
                   : <>Se encontraron <strong>{results.length}</strong> documento{results.length !== 1 ? "s" : ""} en PJN</>
                 }
               </p>
-
               {results.map((doc, i) => (
                 <div key={i} className={styles.card}>
                   <div className={styles.cardAccent} />
@@ -200,7 +277,6 @@ export default function Home() {
                   </div>
                 </div>
               ))}
-
               {results.length === 0 && !error && (
                 <div className={styles.emptyState}>
                   <p className={styles.emptyIcon}>◎</p>
@@ -228,7 +304,7 @@ export default function Home() {
         </footer>
       </div>
 
-      {/* ── Modal de análisis ── */}
+      {/* Modal */}
       {summaryDoc && (
         <div className={styles.overlay} onClick={e => e.target === e.currentTarget && closeModal()}>
           <div className={styles.modal}>
